@@ -27,13 +27,15 @@ const FilterTabs = ({ onFilterChange }) => {
   const FILTER_CATEGORIES = {
     connectorType: [
       { label: 'CCS2', value: 'CCS2' },
-      { label: 'Type2', value: 'Type2' },
+      { label: 'CCS1', value: 'CCS1' },
+      { label: 'Type2', value: 'Type 2' },
       { label: 'CHAdeMO', value: 'CHAdeMO' },
-      { label: 'Type1', value: 'Type1' }
+      { label: 'Type1', value: 'Type 1' }
     ],
     status: [
-      { label: 'Available', value: 'Available' },
-      { label: 'In Use', value: 'In Use' }
+      { label: 'ACTIVE', value: 'ACTIVE' },
+      { label: 'INACTIVE', value: 'INACTIVE' },
+      { label: 'MAINTENANCE', value: 'MAINTENANCE' }
     ]
   };
 
