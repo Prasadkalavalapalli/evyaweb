@@ -1,7 +1,7 @@
 // stationsApi.js - UPDATED
 import axios from "axios";
 
-const API_URL = "http://localhost:8800/api/mobile/mobilegetAllSites";
+const API_URL = "https://server.evyaa.com/api/mobile/mobilegetAllSites";
 
 const getStations = async ({ location, filters, search, from, to } = {}, signal) => {
   let params = {};
