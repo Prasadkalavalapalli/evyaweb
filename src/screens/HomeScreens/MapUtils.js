@@ -8,9 +8,9 @@ export const createStationIcon = (site, isSelected = false) => {
   if (name.includes("bpcl")) logo = require("../../images/bpcl.png");
   else if (name.includes("hpcl")) logo = require("../../images/hpcl.png");
   else if (name.includes("iocl") || name.includes("indian oil")) logo = require("../../images/incl.png");
-  const isAvailable = site.available > 0;
-  const badgeColor = isAvailable ? pallette.l1 : pallette.red;
-  const badgeBg = isAvailable ? pallette.lightGreen : pallette.lightRed;
+  const isAvailable = site.avaiPorts > 0;
+  const badgeColor = isAvailable ? pallette.primary : pallette.red;
+  const badgeBg = isAvailable ? pallette.lightprimary : pallette.lightred;
 
   return L.divIcon({
     html: `

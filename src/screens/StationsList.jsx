@@ -391,7 +391,7 @@ const StationsList = () => {
               <div style={styles.detailsRow}>
                 <span style={styles.detailText}>{item.current_type || 'N/A'}</span>
                 <span style={styles.detailText}>⚡ {item.power || 'N/A'}</span>
-                <span style={styles.detailText}>{item.price || 'N/A'}/kWh</span>
+                <span style={styles.detailText}>₹ { item.price || 'N/A'}/kWh</span>
               </div>
 
               <div style={styles.footer}>

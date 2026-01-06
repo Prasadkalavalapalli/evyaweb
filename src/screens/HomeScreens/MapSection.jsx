@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { FaCrosshairs, FaList, FaDirections, FaSearch, FaBolt, FaChevronLeft,FaChevronRight } from 'react-icons/fa';
+import { FaCrosshairs, FaList, FaDirections, FaSearch, FaBolt, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import MapController from './MapController';
 import FitBounds from './FitBounds';
@@ -28,7 +28,8 @@ const MapSection = () => {
   const { 
     stations: sites = [], 
     loading: stationsLoading, 
-    error: stationsError 
+    error: stationsError,
+    lastUsedParams
   } = useSelector((state) => state.stations || {});
 
   const [currentLocation, setCurrentLocation] = useState(null);
@@ -45,19 +46,32 @@ const MapSection = () => {
   const cardsRef = useRef(null);
   const markerRefs = useRef({});
 
-  // Get current location and fetch stations
-  const fetchStationsWithParams = useCallback((location) => {
+  // Get current location and fetch stations with filters
+  const fetchStationsWithParams = useCallback((location, filters = {}) => {
     if (!location) return;
+    
     const requestParams = { 
       location: { 
         latitude: location.lat, 
         longitude: location.lng 
-      } 
+      },
+      filters: filters
     };
+    
+    console.log('Fetching stations with params:', requestParams);
     dispatch(fetchStations(requestParams));
     setShouldFitBounds(true);
   }, [dispatch]);
 
+  // Handle filter changes from FilterTabs
+  const handleFilterChange = useCallback((newFilters) => {
+    console.log('Filter change received:', newFilters);
+    if (currentLocation) {
+      fetchStationsWithParams(currentLocation, newFilters);
+    }
+  }, [currentLocation, fetchStationsWithParams]);
+
+  // Initial load with current location and any existing filters
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -67,13 +81,19 @@ const MapSection = () => {
             lng: pos.coords.longitude 
           };
           setCurrentLocation(location);
-          fetchStationsWithParams(location);
+          
+          // Use existing filters from Redux store if available
+          const existingFilters = lastUsedParams?.filters || {};
+          console.log('Initial load with filters:', existingFilters);
+          fetchStationsWithParams(location, existingFilters);
         },
         (err) => {
           console.error('Geolocation error:', err);
           const defaultLocation = { lat: 28.6139, lng: 77.2090 };
           setCurrentLocation(defaultLocation);
-          fetchStationsWithParams(defaultLocation);
+          
+          const existingFilters = lastUsedParams?.filters || {};
+          fetchStationsWithParams(defaultLocation, existingFilters);
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
@@ -200,6 +220,24 @@ const MapSection = () => {
     }
   }, [stationsWithCoordinates, activeCardIndex]);
 
+  // Check if we have active filters
+  const hasActiveFilters = useMemo(() => {
+    return lastUsedParams?.filters && (
+      lastUsedParams.filters.chargerType || 
+      lastUsedParams.filters.connectorType || 
+      lastUsedParams.filters.status
+    );
+  }, [lastUsedParams]);
+
+  // Handle clearing filters
+  const handleClearFilters = useCallback(() => {
+    if (currentLocation) {
+      console.log('Clearing all filters');
+      // Fetch stations without filters
+      fetchStationsWithParams(currentLocation, {});
+    }
+  }, [currentLocation, fetchStationsWithParams]);
+
   if (!currentLocation) {
     return (
       <div style={styles.loadingContainer}>
@@ -218,7 +256,10 @@ const MapSection = () => {
     <div style={styles.container}>
       {/* Filter Tabs */}
       <div style={styles.filterContainer}>
-        <FilterTabs searchQuery={searchQuery} />
+        <FilterTabs 
+          searchQuery={searchQuery} 
+          onFilterChange={handleFilterChange}
+        />
       </div>
 
       {/* Map Container */}
@@ -298,12 +339,11 @@ const MapSection = () => {
 
         {/* Loading Overlay */}
         {stationsLoading && (
-          <div style={styles.overlay}>
-            <div style={styles.spinner} />
-            <div style={styles.loadingText}>
-              Loading charging stations...
-            </div>
-          </div>
+          <div style={styles.loadingContainer}>
+        <Spinner size={80} color={pallette.primary} message=" Loading charging stations..." />
+      </div>
+         
+          
         )}
 
         {/* Error Overlay */}
@@ -313,7 +353,7 @@ const MapSection = () => {
               {stationsError}
             </div>
             <button 
-              onClick={() => currentLocation && fetchStationsWithParams(currentLocation)}
+              onClick={() => currentLocation && fetchStationsWithParams(currentLocation, lastUsedParams?.filters || {})}
               style={styles.retryButton}
             >
               Retry
@@ -321,12 +361,26 @@ const MapSection = () => {
           </div>
         )}
 
-        {/* No Stations Message */}
+        {/* No Stations Message with filter info */}
         {!stationsLoading && !stationsError && stationsWithCoordinates.length === 0 && (
           <div style={styles.overlay}>
-            <div style={styles.noStationsText}>
-              No charging stations found in your area
+            <div style={{
+              ...styles.noStationsText,
+              marginBottom: hasActiveFilters ? '16px' : '0'
+            }}>
+              {hasActiveFilters 
+                ? "No charging stations found with the selected filters"
+                : "No charging stations found in your area"
+              }
             </div>
+            {hasActiveFilters && (
+              <button 
+                onClick={handleClearFilters}
+                style={styles.clearFiltersButton}
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         )}
 
@@ -376,20 +430,7 @@ const MapSection = () => {
         {/* Navigation Arrows (when cards are visible) */}
         {cardsVisible && selectedStation && stationsWithCoordinates.length > 1 && (
           <>
-            <button 
-              style={styles.navArrowLeft}
-              onClick={() => handleCardNavigation('prev')}
-              title="Previous station"
-            >
-              <FaChevronLeft />
-            </button>
-            <button 
-              style={styles.navArrowRight}
-              onClick={() => handleCardNavigation('next')}
-              title="Next station"
-            >
-              <FaChevronRight />
-            </button>
+            
           </>
         )}
 
@@ -424,8 +465,8 @@ const styles = {
     position: 'fixed',
     top: 0,
     left: 0,
-    width: '95vw',
-    height: '95vh',
+    width: '100vw',
+    height: '100vh',
     overflow: 'hidden',
     fontFamily: 'Arial, sans-serif',
     borderRadius: 20,
@@ -435,7 +476,7 @@ const styles = {
   },
   innerContainer: {
     width: '100%',
-    height: '90%',
+    height: '100%',
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: pallette.white,
@@ -514,6 +555,17 @@ const styles = {
     cursor: 'pointer',
     fontSize: '15px',
     fontWeight: 'bold',
+  },
+  clearFiltersButton: {
+    padding: '12px 24px',
+    backgroundColor: pallette.primary,
+    color: pallette.white,
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '15px',
+    fontWeight: 'bold',
+    marginTop: '16px',
   },
   actionButtons: {
     position: 'absolute',
@@ -605,19 +657,21 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'column',
-    backgroundColor: pallette.white,
+   
   },
 };
 
 // Add CSS animation
-const styleSheet = document.styleSheets[0];
-if (styleSheet) {
-  styleSheet.insertRule(`
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  `, styleSheet.cssRules.length);
+if (typeof document !== 'undefined') {
+  const styleSheet = document.styleSheets[0];
+  if (styleSheet) {
+    styleSheet.insertRule(`
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `, styleSheet.cssRules.length);
+  }
 }
 
 export default MapSection;

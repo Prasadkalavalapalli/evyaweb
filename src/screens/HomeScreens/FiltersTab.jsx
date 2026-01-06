@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { FaChevronUp, FaChevronDown, FaTimesCircle, FaFilter, FaBolt } from 'react-icons/fa';
-
 import { pallette } from '../Utils/Pallete';
 import { updateFilters } from '../../redux/StationsSlice';
 
@@ -20,8 +19,8 @@ const FilterTabs = ({ onFilterChange }) => {
 
   const TABS = [
     { label: 'AC', value: 'AC' },
-    { label: 'DC', value: 'DC' },
-    { label: 'DC Fast', value: 'DC Fast' }
+    { label: 'DC', value: 'DC' }
+   
   ];
   
   const FILTER_CATEGORIES = {
@@ -39,20 +38,54 @@ const FilterTabs = ({ onFilterChange }) => {
     ]
   };
 
-  // Apply chargerType filter when tab changes
+  // Apply chargerType filter when tab changes - FIXED
   useEffect(() => {
+    console.log('Active tab changed:', activeTab);
+    
     if (activeTab) {
       const chargerType = TABS.find(tab => tab.label === activeTab)?.value;
+      console.log('Found chargerType:', chargerType);
+      
       if (chargerType) {
-        setFilters(prev => ({ ...prev, chargerType }));
+        const updatedFilters = { ...filters, chargerType };
+        setFilters(updatedFilters);
+        
+        // Apply filters immediately when tab is clicked
+        applyFiltersImmediately(updatedFilters);
       }
     } else {
-      setFilters(prev => ({ ...prev, chargerType: null }));
+      // When tab is cleared, remove chargerType filter
+      const updatedFilters = { ...filters, chargerType: null };
+      setFilters(updatedFilters);
+      applyFiltersImmediately(updatedFilters);
     }
   }, [activeTab]);
 
-  // Apply filters to Redux and API
+  // Apply filters immediately (for tab clicks)
+  const applyFiltersImmediately = (filterData) => {
+    console.log('Applying filters immediately:', filterData);
+    
+    // Prepare filter payload for API
+    const filterPayload = {
+      chargerType: filterData.chargerType || null,
+      connectorType: filterData.connectorType || null,
+      status: filterData.status || null,
+    };
+
+    // Update Redux store
+    dispatch(updateFilters(filterPayload));
+    
+    // Notify parent component (MapSection) to trigger API call
+    if (onFilterChange) {
+      console.log('Calling onFilterChange with:', filterPayload);
+      onFilterChange(filterPayload);
+    }
+  };
+
+  // Apply filters to Redux and API (for Apply button)
   const applyFilters = () => {
+    console.log('Applying filters from Apply button:', filters);
+    
     // Prepare filter payload for API
     const filterPayload = {
       chargerType: filters.chargerType || null,
@@ -63,8 +96,9 @@ const FilterTabs = ({ onFilterChange }) => {
     // Update Redux store
     dispatch(updateFilters(filterPayload));
     
-    // Notify parent component (MapSearch) to trigger API call
+    // Notify parent component (MapSection) to trigger API call
     if (onFilterChange) {
+      console.log('Calling onFilterChange with:', filterPayload);
       onFilterChange(filterPayload);
     }
     
@@ -76,13 +110,16 @@ const FilterTabs = ({ onFilterChange }) => {
   };
 
   const updateFilterState = (filterType, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: prev[filterType] === value ? null : value
-    }));
+    const updatedFilters = {
+      ...filters,
+      [filterType]: filters[filterType] === value ? null : value
+    };
+    setFilters(updatedFilters);
+    console.log('Updated filters state:', updatedFilters);
   };
 
   const clearFilters = () => {
+    console.log('Clearing all filters');
     setActiveTab('');
     setFilters({
       chargerType: null,
@@ -102,6 +139,7 @@ const FilterTabs = ({ onFilterChange }) => {
     
     // Notify parent component
     if (onFilterChange) {
+      console.log('Calling onFilterChange with empty filters');
       onFilterChange(emptyFilters);
     }
   };
@@ -143,6 +181,19 @@ const FilterTabs = ({ onFilterChange }) => {
     </div>
   );
 
+  // Handle tab click - FIXED to work properly
+  const handleTabClick = (tabLabel) => {
+    console.log('Tab clicked:', tabLabel);
+    
+    if (activeTab === tabLabel) {
+      // If clicking the same tab, clear it
+      setActiveTab('');
+    } else {
+      // Set the new active tab
+      setActiveTab(tabLabel);
+    }
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.row}>
@@ -155,7 +206,7 @@ const FilterTabs = ({ onFilterChange }) => {
                 backgroundColor: activeTab === tab.label ? pallette.primary : pallette.lightgrey,
                 color: activeTab === tab.label ? pallette.white : pallette.primary,
               }}
-              onClick={() => setActiveTab(activeTab === tab.label ? '' : tab.label)}
+              onClick={() => handleTabClick(tab.label)}
             >
               <FaBolt size={14} />
               <span style={styles.tabText}>{tab.label}</span>

@@ -208,17 +208,13 @@ const SiteCard = ({
         <div style={styles.stationAddress}>{site.address}</div>
 
         <div style={styles.detailsRow}>
-           {site.powerTypes && site.powerTypes.slice(0, 2).map((conn, index) => (
-         
-              <div style={styles.connectorText}>{conn}</div>
-            
-          ))}
+           <div style={styles.detailText}>{site.current_type}</div>
           <div style={styles.detailText}>⚡ {site.capacityRange}</div>
-          <div style={styles.detailText}>{site.priceRange}/kWh</div>
+          <div style={styles.detailText}>₹ {site.priceRange}/kWh</div>
         </div>
 
         <div style={styles.connectorContainer}>
-          {site.connectorTypes && site.connectorTypes.slice(0, 3).map((conn, index) => (
+          {site.connectorTypes && site.connectorTypes.slice(0, 2).map((conn, index) => (
             <div key={index} style={styles.connectorTag}>
               <div style={styles.connectorText}>{conn}</div>
             </div>

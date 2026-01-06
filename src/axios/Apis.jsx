@@ -17,7 +17,7 @@ const getStations = async ({ location, filters, search, from, to } = {}, signal)
     if (filters.radius != null) params.radiusKm = filters.radius;
     if (filters.connectorType != null) params.connectorTypes = filters.connectorType;
     if (filters.power != null) params.powerRange = filters.power;
-    if (filters.chargerType != null) params.powerTypes = filters.chargerType;
+    if (filters.chargerType != null) params.powerType = filters.chargerType;
     if (filters.status != null) params.status = filters.status;
     if (filters.evya != null) params.evya = filters.evya;
   }

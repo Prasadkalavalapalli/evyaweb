@@ -469,13 +469,13 @@ const StationCards = ({
 
                   <div style={styles.detailsRow}>
                     <div style={styles.detailText}>
-                      {station.current_type || 'DC/AC'}
+                      {station.current_type }
                     </div>
                     <div style={styles.detailText}>
-                      ⚡ {station.power || station.capacityRange || '50kW'}
+                      ⚡ {station.power || station.capacityRange}
                     </div>
                     <div style={styles.detailText}>
-                      {station.price || station.priceRange || '12'}/kWh
+                     ₹ {station.price || station.priceRange}/kWh
                     </div>
                   </div>
 
