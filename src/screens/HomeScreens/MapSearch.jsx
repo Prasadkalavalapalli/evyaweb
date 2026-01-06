@@ -337,7 +337,7 @@ const styles = {
   },
   searchContainer: {
     position: 'absolute',
-    top: 20,
+    top: 50,
     left: 20,
     right: 20,
     zIndex: 1001,
@@ -389,7 +389,7 @@ const styles = {
   },
   filterContainer: {
     position: 'absolute',
-    top: 80,
+    top: 120,
     left: 20,
     right: 20,
     zIndex: 1000,
