@@ -14,7 +14,7 @@ export const createStationIcon = (site, isSelected = false) => {
 
   return L.divIcon({
     html: `
-      <div style="position: relative; cursor: pointer; width: 20px; height: 40px;">
+      ${isSelected ? `<div style="position: relative; cursor: pointer; width: 30px; height: 40px;">`:`<div style="position: relative; cursor: pointer; width: 20px; height: 40px;">`}
         <img 
           src="${logo}" 
           alt="EV Station" 
@@ -45,16 +45,7 @@ export const createStationIcon = (site, isSelected = false) => {
           </span>
         </div>
         ${isSelected ? `
-          <div style="
-            position: absolute;
-            top: -5px;
-            left: -5px;
-            right: -5px;
-            bottom: -5px;
-            border: 3px solid ${pallette.primary};
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-          "></div>
+         
         ` : ''}
       </div>
     `,

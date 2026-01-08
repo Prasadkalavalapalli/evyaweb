@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { FaSearch, FaTimes } from 'react-icons/fa';
+import { FaArrowLeft, FaBackward,FaList, FaTimes,FaCrosshairs } from 'react-icons/fa';
 
 // Components
 import FitBounds from './FitBounds';
@@ -11,11 +11,13 @@ import { createStationIcon } from './MapUtils';
 import { pallette } from '../Utils/Pallete';
 import Spinner from '../../helpers/Spinner';
 import FilterTabs from './FiltersTab';
-import ErrorMessage from '../../helpers/ErrorMessage'; // Import the ErrorMessage component
+import ErrorMessage from '../../helpers/ErrorMessage';
 
 // Redux actions
 import { fetchStations, updateSearch, updateFilters } from '../../redux/StationsSlice';
 import SiteCard from '../SiteCard';
+import { useNavigate } from 'react-router-dom';
+
 
 // Fix leaflet marker issue
 delete L.Icon.Default.prototype._getIconUrl;  
@@ -45,6 +47,7 @@ const MapSearch = () => {
   const [localSearchQuery, setLocalSearchQuery] = useState(reduxSearch || '');
   const [noStationsMessage, setNoStationsMessage] = useState('');
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+ const navigate = useNavigate();
 
   // Sync local search with Redux
   useEffect(() => {
@@ -84,7 +87,7 @@ const MapSearch = () => {
   const clearSearch = useCallback(() => {
     setLocalSearchQuery('');
     dispatch(updateSearch(''));
-    setSelectedStation(null); // Clear selected station
+    setSelectedStation(null);
     fetchStationsWithParams('', appliedFilters);
   }, [dispatch, fetchStationsWithParams, appliedFilters]);
 
@@ -122,13 +125,11 @@ const MapSearch = () => {
   // Handle navigation to site
   const handleNavigateToSite = (site) => {
     console.log('Navigate to:', site);
-    // Add navigation logic here
   };
 
   // Close site card when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // If site card is open and user clicks outside of it, close it
       if (selectedStation && !event.target.closest('.site-card-container, .leaflet-marker-icon')) {
         setSelectedStation(null);
       }
@@ -143,23 +144,8 @@ const MapSearch = () => {
   // Show no stations message when search returns empty
   useEffect(() => {
     if (!stationsLoading && !isInitialLoad && stations.length === 0) {
-      let message = 'No charging stations found';
+      setNoStationsMessage('No charging stations found');
       
-      // if (localSearchQuery) {
-      //   message += ` for "${localSearchQuery}"`;
-      // }
-      
-      // if (Object.values(appliedFilters).some(filter => filter !== null)) {
-      //   if (localSearchQuery) {
-      //     message += ' with current filters';
-      //   } else {
-      //     message += ' with current filters';
-      //   }
-      // }
-      
-      setNoStationsMessage(message);
-      
-      // Auto-clear message after 4 seconds
       const timer = setTimeout(() => {
         setNoStationsMessage('');
       }, 4000);
@@ -168,7 +154,7 @@ const MapSearch = () => {
     } else {
       setNoStationsMessage('');
     }
-  }, [stations, stationsLoading, localSearchQuery, appliedFilters, isInitialLoad]);
+  }, [stations, stationsLoading, isInitialLoad]);
 
   // Initial load
   useEffect(() => {
@@ -187,39 +173,59 @@ const MapSearch = () => {
 
   return (
     <div style={styles.container}>
+     
+
       <div style={styles.innerContainer}>
         
-        {/* Search Bar */}
+        {/* Search Bar - Always side by side */}
         <div style={styles.searchContainer}>
-          <div style={styles.searchBox}>
-            <FaSearch style={styles.searchIcon} />
-            <input
-              type="text"
-              placeholder="Search charging stations..."
-              value={localSearchQuery}
-              onChange={(e) => setLocalSearchQuery(e.target.value)}
-              onKeyPress={handleKeyPress}
-              style={styles.searchInput}
-            />
-            {localSearchQuery && (
-              <FaTimes 
-                style={styles.clearIcon} 
-                onClick={clearSearch}
-                title="Clear search"
+          
+          <div style={styles.searchWrapper}>
+            
+            <div style={styles.searchBox}>
+              <FaArrowLeft
+  style={styles.backButton} 
+  onClick={() => navigate(-1)} 
+  title="Go back"
+/>
+              <input
+                type="text"
+                placeholder="Search charging stations..."
+                value={localSearchQuery}
+                onChange={(e) => setLocalSearchQuery(e.target.value)}
+                onKeyPress={handleKeyPress}
+                style={styles.searchInput}
               />
-            )}
+              {localSearchQuery && (
+                <FaTimes 
+                  style={styles.clearIcon} 
+                  onClick={clearSearch}
+                  title="Clear search"
+                />
+              )}
+            </div>
+            <button 
+              style={{
+                ...styles.searchButton,
+                ...(stationsLoading ? styles.searchButtonDisabled : {})
+              }}
+              onClick={handleSearch}
+              disabled={stationsLoading}
+            >
+              {stationsLoading ? (
+                <div style={styles.loadingDots}>
+                  <span>.</span><span>.</span><span>.</span>
+                </div>
+              ) : (
+                <>
+                  {/* <FaSearch style={styles.searchButtonIcon} /> */}
+                  <span style={styles.searchButtonText}>Search</span>
+                </>
+              )}
+            </button>
           </div>
-          <button 
-            style={styles.searchButton}
-            onClick={handleSearch}
-            onMouseEnter={(e) => e.target.style.backgroundColor = pallette.primaryDark}
-            onMouseLeave={(e) => e.target.style.backgroundColor = pallette.primary}
-            disabled={stationsLoading}
-          >
-            {stationsLoading ? 'Searching...' : 'Search'}
-          </button>
         </div>
-
+    
         {/* Filter Tabs */}
         <div style={styles.filterContainer}>
           <FilterTabs onFilterChange={handleFilterChange} />
@@ -227,6 +233,7 @@ const MapSearch = () => {
 
         {/* Map Container */}
         <div style={styles.mapContainer}>
+          
           <MapContainer
             center={[20.5937, 78.9629]}
             zoom={5}
@@ -237,7 +244,7 @@ const MapSearch = () => {
           >
             <TileLayer
               attribution='&copy; OpenStreetMap'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+               url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
             />
 
             {/* Fit bounds for stations */}
@@ -272,12 +279,9 @@ const MapSearch = () => {
 
           {/* Loading Overlay for initial load */}
           {stationsLoading && stations.length === 0 && (
-            <div style={styles.overlay}>
-              <div style={styles.spinner} />
-              <div style={styles.loadingText}>
-                Loading charging stations...
-              </div>
-            </div>
+            <div style={styles.loadingContainer}>
+        <Spinner size={80} color={pallette.primary} message=" Loading charging stations..." />
+      </div>
           )}
 
           {/* Error Message */}
@@ -311,6 +315,23 @@ const MapSearch = () => {
 
         {/* No Stations Found Message */}
         <ErrorMessage message={noStationsMessage} />
+        {/* Action Buttons */}
+                <div style={styles.actionButtons}>
+                  {/* <button
+                    style={styles.actionButton}
+                    onClick={centerOnUser}
+                    title="Center on my location"
+                  >
+                    <FaCrosshairs style={styles.actionIcon} />
+                  </button> */}
+                  {/* <button 
+                    onClick={() => navigate("/stations")}
+                    style={styles.actionButton}
+                    title="View list"
+                  >
+                    <FaList style={styles.actionIcon} />
+                  </button> */}
+                </div>
       </div>
     </div>
   );
@@ -327,7 +348,6 @@ const styles = {
     fontFamily: 'Arial, sans-serif',
     backgroundColor: pallette.white,
     boxSizing: 'border-box',
-    zIndex: 1,
   },
   innerContainer: {
     width: '100%',
@@ -335,15 +355,19 @@ const styles = {
     overflow: 'hidden',
     backgroundColor: pallette.white,
   },
+  // Search container
   searchContainer: {
     position: 'absolute',
-    top: 50,
+    top: 20,
     left: 20,
     right: 20,
-    zIndex: 1001,
+    zIndex: 1000,
+  },
+  searchWrapper: {
     display: 'flex',
-    gap: 10,
+    gap: '10px',
     alignItems: 'center',
+    width: '100%',
   },
   searchBox: {
     flex: 1,
@@ -351,47 +375,100 @@ const styles = {
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     backdropFilter: 'blur(10px)',
-    borderRadius: 12,
+    borderRadius: '12px',
     padding: '8px 16px',
     boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
     border: '1px solid rgba(0, 0, 0, 0.1)',
-  },
-  searchIcon: {
-    fontSize: 18,
-    color: pallette.grey,
-    marginRight: 10,
+    minWidth: 0,
+    position: 'relative',
   },
   searchInput: {
     flex: 1,
     border: 'none',
     outline: 'none',
-    fontSize: 14,
+    fontSize: '14px',
     background: 'transparent',
+    minWidth: 0,
+    paddingRight: '30px',
   },
   clearIcon: {
-    fontSize: 16,
+    position: 'absolute',
+    right: '10px',
+    fontSize: '14px',
     color: pallette.grey,
     cursor: 'pointer',
-    padding: 4,
+    padding: '4px',
   },
   searchButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
     padding: '10px 20px',
     backgroundColor: pallette.primary,
     color: pallette.white,
     border: 'none',
-    borderRadius: 12,
+    borderRadius: '12px',
     cursor: 'pointer',
-    fontSize: 14,
+    fontSize: '14px',
     fontWeight: 'bold',
     boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
-    transition: 'background-color 0.3s, opacity 0.3s',
-    opacity: 1,
+    transition: 'all 0.3s ease',
+    whiteSpace: 'nowrap',
+    minWidth: '100px',
   },
+  searchButtonDisabled: {
+    opacity: 0.7,
+    cursor: 'not-allowed',
+  },
+  searchButtonIcon: {
+    fontSize: '14px',
+  },
+  searchButtonText: {
+    display: 'inline-block',
+  },
+  loadingDots: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '2px',
+    fontSize: '20px',
+    lineHeight: '1',
+  },
+  actionButtons: {
+    position: 'absolute',
+    top: '200px',
+    right: '20px',
+    zIndex: 2000,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px'
+  },
+  actionButton: {
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(10px)',
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+    width: '42px',
+    height: '42px',
+    borderRadius: '26px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '20px',
+    transition: 'all 0.2s ease',
+  },
+  actionIcon: {
+    fontSize: '22px',
+    color: pallette.primary,
+  },
+  // Filter container
   filterContainer: {
     position: 'absolute',
-    top: 120,
-    left: 20,
-    right: 20,
+    top: '80px',
+    left: '20px',
+    right: '20px',
     zIndex: 1000,
   },
   mapContainer: {
@@ -443,14 +520,6 @@ const styles = {
     fontSize: '16px',
     fontWeight: '500',
   },
-  noStationsText: {
-    color: pallette.primary,
-    marginBottom: '16px',
-    padding: '0 20px',
-    textAlign: 'center',
-    fontSize: '16px',
-    fontWeight: '500',
-  },
   retryButton: {
     padding: '12px 24px',
     backgroundColor: pallette.primary,
@@ -464,9 +533,9 @@ const styles = {
   },
   siteCardContainer: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
+    bottom: '20px',
+    left: '20px',
+    right: '20px',
     zIndex: 1000,
   },
   loadingContainer: {
@@ -475,23 +544,220 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'column',
-    backgroundColor: pallette.white,
+   
   },
 };
 
-// Add CSS animation
-const styleSheet = document.styleSheets[0];
-if (styleSheet) {
-  try {
-    styleSheet.insertRule(`
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    `, styleSheet.cssRules.length);
-  } catch (e) {
-    // Rule already exists
+// Add responsive styles
+const responsiveStyles = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
-}
+
+  /* Tablet styles (768px and below) */
+  @media (max-width: 768px) {
+    .search-container {
+      top: 15px;
+      left: 15px;
+      right: 15px;
+    }
+    
+    .search-wrapper {
+      gap: 8px;
+    }
+    
+    .search-box {
+      padding: 6px 14px;
+      border-radius: 10px;
+    }
+    
+    .search-input {
+      font-size: 13px;
+      padding-right: 28px;
+    }
+    
+    .clear-icon {
+      right: 8px;
+      font-size: 13px;
+      padding: 3px;
+    }
+    
+    .search-button {
+      padding: 8px 16px;
+      font-size: 13px;
+      border-radius: 10px;
+      min-width: 90px;
+    }
+    
+    .search-button-icon {
+      font-size: 13px;
+    }
+    
+    .filter-container {
+      top: 70px;
+      left: 15px;
+      right: 15px;
+    }
+    
+    .site-card-container {
+      bottom: 15px;
+      left: 15px;
+      right: 15px;
+    }
+  }
+
+  /* Small tablet styles (600px and below) */
+  @media (max-width: 600px) {
+    .search-container {
+      top: 12px;
+      left: 12px;
+      right: 12px;
+    }
+    
+    .search-wrapper {
+      gap: 6px;
+    }
+    
+    .search-box {
+      padding: 5px 12px;
+      border-radius: 8px;
+    }
+    
+    .search-input {
+      font-size: 12px;
+      padding-right: 26px;
+    }
+    
+    .clear-icon {
+      right: 6px;
+      font-size: 12px;
+      padding: 2px;
+    }
+    
+    .search-button {
+      padding: 7px 12px;
+      font-size: 12px;
+      border-radius: 8px;
+      min-width: 80px;
+    }
+    
+    .search-button-text {
+      display: none;
+    }
+    
+    .search-button-icon {
+      font-size: 12px;
+      margin: 0;
+    }
+    
+    .filter-container {
+      top: 65px;
+      left: 12px;
+      right: 12px;
+    }
+  }
+
+  /* Mobile styles (480px and below) */
+  @media (max-width: 480px) {
+    .search-container {
+      top: 10px;
+      left: 10px;
+      right: 10px;
+    }
+    
+    .search-wrapper {
+      gap: 5px;
+    }
+    
+    .search-box {
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+    
+    .search-input {
+      font-size: 11px;
+      padding-right: 24px;
+    }
+    
+    .clear-icon {
+      right: 5px;
+      font-size: 11px;
+    }
+    
+    .search-button {
+      padding: 6px 10px;
+      font-size: 11px;
+      border-radius: 6px;
+      min-width: 60px;
+    }
+    
+    .search-button-icon {
+      font-size: 11px;
+    }
+    
+    .filter-container {
+      top: 60px;
+      left: 10px;
+      right: 10px;
+    }
+    
+    .site-card-container {
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+    }
+    
+    .loading-text,
+    .error-text {
+      font-size: 14px;
+      padding: 0 15px;
+    }
+    
+    .retry-button {
+      padding: 10px 20px;
+      font-size: 14px;
+    }
+  }
+
+  /* Very small mobile styles (360px and below) */
+  @media (max-width: 360px) {
+    .search-container {
+      top: 8px;
+      left: 8px;
+      right: 8px;
+    }
+    
+    .search-box {
+      padding: 3px 8px;
+    }
+    
+    .search-input {
+      font-size: 10px;
+    }
+    
+    .search-button {
+      padding: 5px 8px;
+      font-size: 10px;
+      min-width: 50px;
+    }
+    
+    .search-button-icon {
+      font-size: 10px;
+    }
+    
+    .filter-container {
+      top: 55px;
+      left: 8px;
+      right: 8px;
+    }
+  }
+`;
+
+// Inject styles
+const styleSheet = document.createElement('style');
+styleSheet.type = 'text/css';
+styleSheet.innerHTML = responsiveStyles;
+document.head.appendChild(styleSheet);
 
 export default MapSearch;

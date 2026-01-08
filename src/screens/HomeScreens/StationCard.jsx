@@ -223,19 +223,20 @@ const StationCards = ({
       maxWidth: '100%',
       justifyContent: 'center',
     },
-    stationCard: {
+   stationCard: {
       width: '94%',
       maxWidth: '500px',
-      minWidth: '310px',
+      minWidth: w < 360 ? '220px' : w < 480 ? '240px' : w < 600 ? '260px' : w < 768 ? '280px' : '310px',
       backgroundColor: pallette.white,
-      borderRadius: 15,
-      padding: '12px',
+      borderRadius: w < 480 ? 8 : w < 768 ? 12 : 15,
+      padding: w < 480 ? '6px' : w < 768 ? '10px' : '12px',
       margin: `0 auto ${h * 0.01}px auto`,
       boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
       position: 'relative',
       cursor: 'pointer',
       boxSizing: 'border-box',
       flexShrink: 0,
+      minHeight: w < 480 ? '140px' : 'auto',
     },
     cardContent: {
       paddingTop: '2px'

@@ -274,7 +274,8 @@ const MapSection = () => {
         >
           <TileLayer
             attribution='&copy; OpenStreetMap'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            
           />
 
           {/* Fit bounds for initial load */}
@@ -386,13 +387,14 @@ const MapSection = () => {
 
         {/* Action Buttons */}
         <div style={styles.actionButtons}>
-          <button
+           <button
             style={styles.actionButton}
-            onClick={centerOnUser}
-            title="Center on my location"
+            onClick={() => navigate("/mapsearch")}
+            title="Get searched data"
           >
-            <FaCrosshairs style={styles.actionIcon} />
+            <FaSearch style={styles.actionIcon} />
           </button>
+          
           <button 
             onClick={() => navigate("/stations")}
             style={styles.actionButton}
@@ -409,10 +411,10 @@ const MapSection = () => {
           </button>
           <button
             style={styles.actionButton}
-            onClick={() => navigate("/mapsearch")}
-            title="Get searched data"
+            onClick={centerOnUser}
+            title="Center on my location"
           >
-            <FaSearch style={styles.actionIcon} />
+            <FaCrosshairs style={styles.actionIcon} />
           </button>
         </div>
 
