@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, CircleMarker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { FaCrosshairs, FaList, FaDirections, FaSearch, FaBolt, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
@@ -13,6 +14,7 @@ import Spinner from '../../helpers/Spinner';
 import StationCards from './StationCard';
 import FilterTabs from './FiltersTab';
 import { fetchStations } from '../../redux/StationsSlice';
+import ErrorMessage from '../../helpers/ErrorMessage';
 
 // Fix leaflet marker issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -21,6 +23,50 @@ L.Icon.Default.mergeOptions({
   iconUrl: require('leaflet/dist/images/marker-icon.png'),
   shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
+
+// Map Move Listener Component
+const MapMoveListener = ({ onLocationChange, debounceDelay = 1500 }) => {
+  const timeoutRef = useRef(null);
+  const lastCenterRef = useRef(null);
+
+  const map = useMapEvents({
+    moveend: () => {
+      const center = map.getCenter();
+      
+      // Prevent duplicate calls for same location
+      if (lastCenterRef.current && 
+          lastCenterRef.current.lat === center.lat && 
+          lastCenterRef.current.lng === center.lng) {
+        return;
+      }
+      
+      // Clear existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Debounce to prevent too many API calls
+      timeoutRef.current = setTimeout(() => {
+        lastCenterRef.current = center;
+        onLocationChange({
+          lat: center.lat,
+          lng: center.lng,
+        });
+      }, debounceDelay);
+    },
+  });
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return null;
+};
 
 const MapSection = () => {
   const navigate = useNavigate();
@@ -41,14 +87,48 @@ const MapSection = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [cardsVisible, setCardsVisible] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [isMapMovedByUser, setIsMapMovedByUser] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isLocating, setIsLocating] = useState(false);
   
   const mapRef = useRef(null);
   const cardsRef = useRef(null);
   const markerRefs = useRef({});
+  const lastFetchLocationRef = useRef(null);
 
-  // Get current location and fetch stations with filters
+  // Get station coordinates
+  const getStationCoordinates = useCallback((station) => {
+    return {
+      lat: station.coordinates?.latitude || station.latitude || station.lat,
+      lng: station.coordinates?.longitude || station.longitude || station.lng
+    };
+  }, []);
+
+  // Calculate distance between two points
+  const calculateDistance = useCallback((lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return (R * c).toFixed(1) + " KM";
+  }, []);
+
+  // Fetch stations with params
   const fetchStationsWithParams = useCallback((location, filters = {}) => {
     if (!location) return;
+    
+    // Prevent fetching same location multiple times
+    if (lastFetchLocationRef.current && 
+        lastFetchLocationRef.current.lat === location.lat && 
+        lastFetchLocationRef.current.lng === location.lng) {
+      return;
+    }
+    
+    lastFetchLocationRef.current = location;
     
     const requestParams = { 
       location: { 
@@ -58,47 +138,179 @@ const MapSection = () => {
       filters: filters
     };
     
-    console.log('Fetching stations with params:', requestParams);
     dispatch(fetchStations(requestParams));
-    setShouldFitBounds(true);
-  }, [dispatch]);
+    
+    // Only fit bounds on initial load
+    if (isInitialLoad && !isMapMovedByUser) {
+      setShouldFitBounds(true);
+    }
+  }, [dispatch, isInitialLoad, isMapMovedByUser]);
 
-  // Handle filter changes from FilterTabs
+  // Handle filter changes
   const handleFilterChange = useCallback((newFilters) => {
-    console.log('Filter change received:', newFilters);
     if (currentLocation) {
+      setIsInitialLoad(false);
       fetchStationsWithParams(currentLocation, newFilters);
     }
   }, [currentLocation, fetchStationsWithParams]);
 
-  // Initial load with current location and any existing filters
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const location = { 
-            lat: pos.coords.latitude, 
-            lng: pos.coords.longitude 
-          };
-          setCurrentLocation(location);
-          
-          // Use existing filters from Redux store if available
-          const existingFilters = lastUsedParams?.filters || {};
-          console.log('Initial load with filters:', existingFilters);
-          fetchStationsWithParams(location, existingFilters);
-        },
-        (err) => {
-          console.error('Geolocation error:', err);
-          const defaultLocation = { lat: 28.6139, lng: 77.2090 };
-          setCurrentLocation(defaultLocation);
-          
-          const existingFilters = lastUsedParams?.filters || {};
-          fetchStationsWithParams(defaultLocation, existingFilters);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
+  // Handle map location change
+  const handleMapLocationChange = useCallback((location) => {
+    setIsMapMovedByUser(true);
+    setIsInitialLoad(false);
+    setCurrentLocation(location);
+    setShouldFitBounds(false);
+    
+    const activeFilters = lastUsedParams?.filters || {};
+    fetchStationsWithParams(location, activeFilters);
+  }, [fetchStationsWithParams, lastUsedParams]);
+
+  // Center on user location
+  const centerOnUser = useCallback(() => {
+    if (!navigator.geolocation) {
+      // Fallback for browsers without geolocation
+      if (currentLocation) {
+        setFlyToLocation([currentLocation.lat, currentLocation.lng]);
+        setFlyToZoom(14);
+        setShouldFly(true);
+        setSelectedStation(null);
+        setCardsVisible(false);
+        setIsMapMovedByUser(false);
+      }
+      return;
     }
-  }, [fetchStationsWithParams]);
+
+    setIsLocating(true);
+    
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const freshLocation = { 
+          lat: pos.coords.latitude, 
+          lng: pos.coords.longitude 
+        };
+        
+        // Update state with fresh location
+        setCurrentLocation(freshLocation);
+        
+        // Fly to the fresh location
+        setFlyToLocation([freshLocation.lat, freshLocation.lng]);
+        setFlyToZoom(14);
+        setShouldFly(true);
+        setSelectedStation(null);
+        setCardsVisible(false);
+        setIsMapMovedByUser(false);
+        setIsLocating(false);
+        
+        // Re-fetch stations for the new location
+        const existingFilters = lastUsedParams?.filters || {};
+        fetchStationsWithParams(freshLocation, existingFilters);
+      },
+      (err) => {
+        setIsLocating(false);
+        
+        // Fallback to existing location
+        if (currentLocation) {
+          setFlyToLocation([currentLocation.lat, currentLocation.lng]);
+          setFlyToZoom(14);
+          setShouldFly(true);
+          setSelectedStation(null);
+          setCardsVisible(false);
+          setIsMapMovedByUser(false);
+        }
+      },
+      { 
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    );
+  }, [currentLocation, lastUsedParams, fetchStationsWithParams]);
+
+  // Initial load
+  useEffect(() => {
+    const initLocation = () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const location = { 
+              lat: pos.coords.latitude, 
+              lng: pos.coords.longitude 
+            };
+            setCurrentLocation(location);
+            setIsMapMovedByUser(false);
+            
+            const existingFilters = lastUsedParams?.filters || {};
+            fetchStationsWithParams(location, existingFilters);
+            
+            // Set initial load complete after a delay
+            setTimeout(() => setIsInitialLoad(false), 500);
+          },
+          (err) => {
+            // Get user's approximate location from IP or use safe fallback
+            const getApproximateLocation = () => {
+              // You might want to implement IP-based geolocation here
+              // For now, using a safe approach
+              return new Promise((resolve) => {
+                if (navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    (pos) => resolve({
+                      lat: pos.coords.latitude,
+                      lng: pos.coords.longitude
+                    }),
+                    () => resolve(null),
+                    { timeout: 5000 }
+                  );
+                } else {
+                  resolve(null);
+                }
+              });
+            };
+
+            getApproximateLocation().then(location => {
+              if (location) {
+                setCurrentLocation(location);
+                setIsMapMovedByUser(false);
+                
+                const existingFilters = lastUsedParams?.filters || {};
+                fetchStationsWithParams(location, existingFilters);
+              } else {
+                // Use a central location for the country/region
+                // This should ideally come from app config or user preferences
+                const centralLocation = { 
+                  lat: 20.5937,  // Approximate center of India
+                  lng: 78.9629 
+                };
+                setCurrentLocation(centralLocation);
+                setIsMapMovedByUser(false);
+                
+                const existingFilters = lastUsedParams?.filters || {};
+                fetchStationsWithParams(centralLocation, existingFilters);
+              }
+              
+              setTimeout(() => setIsInitialLoad(false), 500);
+            });
+          },
+          { 
+            enableHighAccuracy: true, 
+            timeout: 10000,
+            maximumAge: 60000 
+          }
+        );
+      } else {
+        // Browser doesn't support geolocation
+        const centralLocation = { 
+          lat: 20.5937,
+          lng: 78.9629 
+        };
+        setCurrentLocation(centralLocation);
+        fetchStationsWithParams(centralLocation, {});
+        setTimeout(() => setIsInitialLoad(false), 500);
+      }
+    };
+
+    // Only run on initial mount
+    initLocation();
+  }, []);
 
   // Handle click outside cards
   useEffect(() => {
@@ -124,71 +336,40 @@ const MapSection = () => {
     setCardsVisible(true);
     setActiveCardIndex(index);
     
-    const lat = station.coordinates?.latitude || station.latitude || station.lat;
-    const lng = station.coordinates?.longitude || station.longitude || station.lng;
-    
-    if (lat && lng) {
-      setFlyToLocation([lat, lng]);
+    const coords = getStationCoordinates(station);
+    if (coords.lat && coords.lng) {
+      setFlyToLocation([coords.lat, coords.lng]);
       setFlyToZoom(16);
       setShouldFly(true);
     }
-  }, []);
+  }, [getStationCoordinates]);
 
-  // Handle card selection from StationCards
+  // Handle card selection
   const handleCardSelect = useCallback((station, index) => {
     setSelectedStation(station);
     setCardsVisible(true);
     setActiveCardIndex(index);
     
-    const lat = station.coordinates?.latitude || station.latitude || station.lat;
-    const lng = station.coordinates?.longitude || station.longitude || station.lng;
-    
-    if (lat && lng) {
-      setFlyToLocation([lat, lng]);
+    const coords = getStationCoordinates(station);
+    if (coords.lat && coords.lng) {
+      setFlyToLocation([coords.lat, coords.lng]);
       setFlyToZoom(16);
       setShouldFly(true);
     }
-  }, []);
+  }, [getStationCoordinates]);
 
-  // Center on user location
-  const centerOnUser = useCallback(() => {
-    if (currentLocation) {
-      setFlyToLocation([currentLocation.lat, currentLocation.lng]);
-      setFlyToZoom(14);
-      setShouldFly(true);
-      setSelectedStation(null);
-      setCardsVisible(false);
-    }
-  }, [currentLocation]);
-
-  // Handle map click (clear selection)
+  // Handle map click
   const handleMapClick = useCallback(() => {
     setSelectedStation(null);
     setCardsVisible(false);
   }, []);
 
-  // Calculate distance between two points
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return (R * c).toFixed(1) + " KM";
-  };
-
   // Filter stations with valid coordinates
-  const displayStations = sites;
-  
   const stationsWithCoordinates = useMemo(() => 
-    displayStations.filter(station => {
-      const lat = station.coordinates?.latitude || station.latitude || station.lat;
-      const lng = station.coordinates?.longitude || station.longitude || station.lng;
-      return lat && lng;
-    }), [displayStations]);
+    sites.filter(station => {
+      const coords = getStationCoordinates(station);
+      return coords.lat && coords.lng;
+    }), [sites, getStationCoordinates]);
 
   // Toggle cards visibility
   const toggleCardsVisibility = useCallback(() => {
@@ -210,17 +391,15 @@ const MapSection = () => {
     setSelectedStation(station);
     setActiveCardIndex(newIndex);
     
-    const lat = station.coordinates?.latitude || station.latitude || station.lat;
-    const lng = station.coordinates?.longitude || station.longitude || station.lng;
-    
-    if (lat && lng) {
-      setFlyToLocation([lat, lng]);
+    const coords = getStationCoordinates(station);
+    if (coords.lat && coords.lng) {
+      setFlyToLocation([coords.lat, coords.lng]);
       setFlyToZoom(16);
       setShouldFly(true);
     }
-  }, [stationsWithCoordinates, activeCardIndex]);
+  }, [stationsWithCoordinates, activeCardIndex, getStationCoordinates]);
 
-  // Check if we have active filters
+  // Check active filters
   const hasActiveFilters = useMemo(() => {
     return lastUsedParams?.filters && (
       lastUsedParams.filters.chargerType || 
@@ -232,25 +411,32 @@ const MapSection = () => {
   // Handle clearing filters
   const handleClearFilters = useCallback(() => {
     if (currentLocation) {
-      console.log('Clearing all filters');
-      // Fetch stations without filters
       fetchStationsWithParams(currentLocation, {});
     }
   }, [currentLocation, fetchStationsWithParams]);
 
+  // Handle card click
+  const handleCardClick = useCallback((station) => {
+    const encodedSite = encodeURIComponent(JSON.stringify(station));
+    window.location.href = `evya://stationdetails?station=${encodedSite}`;
+  }, []);
+
+  // Handle navigation
+  const handleNavigate = useCallback((station) => {
+    const coords = getStationCoordinates(station);
+    if (coords.lat && coords.lng) {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}&travelmode=driving`;
+      window.open(url, '_blank');
+    }
+  }, [getStationCoordinates]);
+
   if (!currentLocation) {
     return (
-      <div style={styles.loadingContainer}>
+      <div style={styles.fullScreenCenter}>
         <Spinner size={80} color={pallette.primary} message="Getting your location..." />
       </div>
     );
   }
-
-  const handleCardClick = (station) => {
-    // Navigate to station details
-    const encodedSite = encodeURIComponent(JSON.stringify(station));
-    window.location.href = `evya://stationdetails?station=${encodedSite}`;
-  };
 
   return (
     <div style={styles.container}>
@@ -271,15 +457,17 @@ const MapSection = () => {
           whenCreated={(mapInstance) => { mapRef.current = mapInstance; }}
           onClick={handleMapClick}
           zoomControl={false}
+          preferCanvas={true}
         >
           <TileLayer
             attribution='&copy; OpenStreetMap'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           />
 
-          {/* Fit bounds for initial load */}
-          {!searchQuery && shouldFitBounds && (
+          <MapMoveListener onLocationChange={handleMapLocationChange} />
+
+          {/* Fit bounds for initial load only */}
+          {isInitialLoad && shouldFitBounds && stationsWithCoordinates.length > 0 && (
             <FitBounds 
               sites={stationsWithCoordinates} 
               currentLocation={currentLocation} 
@@ -288,8 +476,12 @@ const MapSection = () => {
           )}
 
           {/* Map controller for flying to locations */}
-          {flyToLocation && (
-            <MapController center={flyToLocation} zoom={flyToZoom} shouldFly={shouldFly} />
+          {flyToLocation && shouldFly && (
+            <MapController 
+              center={flyToLocation} 
+              zoom={flyToZoom} 
+              shouldFly={shouldFly} 
+            />
           )}
 
           {/* User Location Marker */}
@@ -306,19 +498,17 @@ const MapSection = () => {
             <Popup>Your Current Location</Popup>
           </CircleMarker>
 
-          {/* Station Markers - NO POPUP */}
+          {/* Station Markers */}
           {stationsWithCoordinates.map((station, index) => {
-            const lat = station.coordinates?.latitude || station.latitude || station.lat;
-            const lng = station.coordinates?.longitude || station.longitude || station.lng;
-            
-            if (!lat || !lng) return null;
+            const coords = getStationCoordinates(station);
+            if (!coords.lat || !coords.lng) return null;
 
             const isSelected = selectedStation?.id === station.id;
 
             return (
               <Marker
-                key={station.id || `${lat}-${lng}-${index}`}
-                position={[lat, lng]}
+                key={`${station.id || 'station'}-${index}-${coords.lat}-${coords.lng}`}
+                position={[coords.lat, coords.lng]}
                 icon={createStationIcon(station, isSelected)}
                 eventHandlers={{
                   click: (e) => {
@@ -327,32 +517,33 @@ const MapSection = () => {
                   },
                 }}
                 ref={(ref) => {
-                  if (ref) {
+                  if (ref && station.id) {
                     markerRefs.current[station.id] = ref;
                   }
                 }}
-              >
-                {/* No Popup - removed intentionally */}
-              </Marker>
+              />
             );
           })}
         </MapContainer>
 
         {/* Loading Overlay */}
-        {stationsLoading && (
-          <div style={styles.loadingContainer}>
-        <Spinner size={80} color={pallette.primary} message=" Loading charging stations..." />
-      </div>
-         
-          
+        {stationsLoading && isInitialLoad && (
+          <div>
+            <Spinner size={80} color={pallette.primary} message="Loading charging stations..." />
+          </div>
         )}
 
-        {/* Error Overlay */}
+        {/* Locating Overlay */}
+        {isLocating && (
+          <div >
+            <Spinner size={80} color={pallette.primary} message="Getting your current location..." />
+          </div>
+        )}
+
+        {/* Error Message */}
         {stationsError && (
-          <div style={styles.overlay}>
-            <div style={styles.errorText}>
-              {stationsError}
-            </div>
+          <div style={styles.errorOverlay}>
+            <ErrorMessage message={stationsError} />
             <button 
               onClick={() => currentLocation && fetchStationsWithParams(currentLocation, lastUsedParams?.filters || {})}
               style={styles.retryButton}
@@ -362,18 +553,15 @@ const MapSection = () => {
           </div>
         )}
 
-        {/* No Stations Message with filter info */}
+        {/* No Stations Found */}
         {!stationsLoading && !stationsError && stationsWithCoordinates.length === 0 && (
-          <div style={styles.overlay}>
-            <div style={{
-              ...styles.noStationsText,
-              marginBottom: hasActiveFilters ? '16px' : '0'
-            }}>
-              {hasActiveFilters 
-                ? "No charging stations found with the selected filters"
+          <div >
+            <ErrorMessage 
+              message={hasActiveFilters 
+                ? "No charging stations found with the selected filters" 
                 : "No charging stations found in your area"
-              }
-            </div>
+              } 
+            />
             {hasActiveFilters && (
               <button 
                 onClick={handleClearFilters}
@@ -387,10 +575,10 @@ const MapSection = () => {
 
         {/* Action Buttons */}
         <div style={styles.actionButtons}>
-           <button
+          <button
             style={styles.actionButton}
             onClick={() => navigate("/mapsearch")}
-            title="Get searched data"
+            title="Search"
           >
             <FaSearch style={styles.actionIcon} />
           </button>
@@ -402,13 +590,15 @@ const MapSection = () => {
           >
             <FaList style={styles.actionIcon} />
           </button>
+          
           <button
             style={styles.actionButton}
             onClick={() => navigate("/route")}
-            title="Get directions"
+            title="Directions"
           >
             <FaDirections style={styles.actionIcon} />
           </button>
+          
           <button
             style={styles.actionButton}
             onClick={centerOnUser}
@@ -429,13 +619,6 @@ const MapSection = () => {
           </button>
         )}
 
-        {/* Navigation Arrows (when cards are visible) */}
-        {cardsVisible && selectedStation && stationsWithCoordinates.length > 1 && (
-          <>
-            
-          </>
-        )}
-
         {/* Stations Cards */}
         {cardsVisible && stationsWithCoordinates.length > 0 && (
           <div ref={cardsRef}>
@@ -445,14 +628,7 @@ const MapSection = () => {
               selectedStation={selectedStation}
               activeCardIndex={activeCardIndex}
               onStationSelect={handleCardSelect}
-              onNavigate={(station) => {
-                const lat = station.coordinates?.latitude || station.latitude || station.lat;
-                const lng = station.coordinates?.longitude || station.longitude || station.lng;
-                if (lat && lng) {
-                  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-                  window.open(url, '_blank');
-                }
-              }}
+              onNavigate={handleNavigate}
               onCardChange={handleCardNavigation}
             />
           </div>
@@ -471,17 +647,8 @@ const styles = {
     height: '100vh',
     overflow: 'hidden',
     fontFamily: 'Arial, sans-serif',
-    borderRadius: 20,
     backgroundColor: pallette.white,
-    boxSizing: 'border-box',
     zIndex: 1,
-  },
-  innerContainer: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: pallette.white,
   },
   filterContainer: {
     position: 'absolute',
@@ -496,14 +663,12 @@ const styles = {
     left: 0,
     width: '100%',
     height: '100%',
-    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: pallette.white,
   },
   map: {
     width: '100%',
     height: '100%',
-    borderRadius: 20,
   },
   overlay: {
     position: 'absolute',
@@ -519,34 +684,20 @@ const styles = {
     zIndex: 3000,
     backdropFilter: 'blur(8px)',
   },
-  spinner: {
-    width: '50px',
-    height: '50px',
-    border: '4px solid #f3f3f3',
-    borderTop: `4px solid ${pallette.primary}`,
-    borderRadius: '50%',
-    animation: 'spin 1s linear infinite'
-  },
-  loadingText: {
-    marginTop: '16px',
-    color: pallette.primary,
-    fontSize: '16px',
-    fontWeight: '500',
-  },
-  errorText: {
-    color: pallette.error,
-    marginBottom: '16px',
-    textAlign: 'center',
-    padding: '0 20px',
-    fontSize: '15px',
-    fontWeight: '500',
-  },
-  noStationsText: {
-    color: pallette.primary,
-    padding: '0 20px',
-    textAlign: 'center',
-    fontSize: '16px',
-    fontWeight: '500',
+  errorOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    background: 'rgba(255, 255, 255, 0.95)',
+    padding: '20px',
+    borderRadius: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    zIndex: 3000,
+    backdropFilter: 'blur(8px)',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
   },
   retryButton: {
     padding: '12px 24px',
@@ -557,6 +708,8 @@ const styles = {
     cursor: 'pointer',
     fontSize: '15px',
     fontWeight: 'bold',
+    marginTop: '16px',
+    minWidth: '100px',
   },
   clearFiltersButton: {
     padding: '12px 24px',
@@ -568,6 +721,7 @@ const styles = {
     fontSize: '15px',
     fontWeight: 'bold',
     marginTop: '16px',
+    minWidth: '140px',
   },
   actionButtons: {
     position: 'absolute',
@@ -619,61 +773,15 @@ const styles = {
     fontSize: '24px',
     color: pallette.white,
   },
-  navArrowLeft: {
-    position: 'absolute',
-    left: '20px',
-    bottom: '150px',
-    background: 'rgba(255, 255, 255, 0.9)',
-    border: 'none',
-    borderRadius: '50%',
-    width: '36px',
-    height: '36px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    zIndex: 2000,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    fontSize: '14px',
-  },
-  navArrowRight: {
-    position: 'absolute',
-    right: '20px',
-    bottom: '150px',
-    background: 'rgba(255, 255, 255, 0.9)',
-    border: 'none',
-    borderRadius: '50%',
-    width: '36px',
-    height: '36px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    zIndex: 2000,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-    fontSize: '14px',
-  },
-  loadingContainer: {
+  fullScreenCenter: {
+    width: '100vw',
     height: '100vh',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'column',
-   
+    backgroundColor: pallette.white,
   },
 };
-
-// Add CSS animation
-if (typeof document !== 'undefined') {
-  const styleSheet = document.styleSheets[0];
-  if (styleSheet) {
-    styleSheet.insertRule(`
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    `, styleSheet.cssRules.length);
-  }
-}
 
 export default MapSection;
