@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { FaChevronUp, FaChevronDown, FaTimesCircle, FaFilter, FaBolt } from 'react-icons/fa';
 import { pallette } from '../Utils/Pallete';
-import { updateFilters } from '../../redux/StationsSlice';
+import { fetchStations, updateFilters } from '../../redux/StationsSlice';
 
 const FilterTabs = ({ onFilterChange }) => {
   const dispatch = useDispatch();
@@ -74,7 +74,7 @@ const FilterTabs = ({ onFilterChange }) => {
 
     // Update Redux store
     dispatch(updateFilters(filterPayload));
-    
+     
     // Notify parent component (MapSection) to trigger API call
     if (onFilterChange) {
       console.log('Calling onFilterChange with:', filterPayload);
@@ -95,7 +95,7 @@ const FilterTabs = ({ onFilterChange }) => {
 
     // Update Redux store
     dispatch(updateFilters(filterPayload));
-    
+    dispatch(fetchStations({ filters: filterPayload }));
     // Notify parent component (MapSection) to trigger API call
     if (onFilterChange) {
       console.log('Calling onFilterChange with:', filterPayload);
