@@ -316,22 +316,22 @@ const MapSearch = () => {
         {/* No Stations Found Message */}
         <ErrorMessage message={noStationsMessage} />
         {/* Action Buttons */}
-                <div style={styles.actionButtons}>
-                  {/* <button
-                    style={styles.actionButton}
-                    onClick={centerOnUser}
-                    title="Center on my location"
-                  >
-                    <FaCrosshairs style={styles.actionIcon} />
-                  </button> */}
-                  {/* <button 
-                    onClick={() => navigate("/stations")}
-                    style={styles.actionButton}
-                    title="View list"
-                  >
-                    <FaList style={styles.actionIcon} />
-                  </button> */}
-                </div>
+                {/* vishaladded */}
+        <div style={styles.actionButtons}>
+
+  {/* Filter Icon already exists */}
+
+  {/* Station List Icon */}
+  {/* vishal added */}
+  <button 
+    onClick={() => navigate("/stations")}
+    style={styles.actionButton}
+    title="Station List"
+  >
+    <FaList style={styles.actionIcon} />
+  </button>
+
+</div>
       </div>
     </div>
   );
@@ -437,7 +437,7 @@ const styles = {
   },
   actionButtons: {
     position: 'absolute',
-    top: '200px',
+    top: '150px',
     right: '20px',
     zIndex: 2000,
     display: 'flex',

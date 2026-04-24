@@ -8,7 +8,7 @@ export const fetchStations = createAsyncThunk(
   async (newParams = {}, { getState, rejectWithValue, signal }) => {
     try {
       const state = getState();
-      const lastFilters = state.stations.lastUsedParams;
+      const lastFilters = state.stations.lastUsedParams.filters;
 
       // Merge previous filters with new ones (deep merge for nested objects)
       const mergedFilters = { 

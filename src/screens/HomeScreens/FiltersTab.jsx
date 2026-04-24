@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
 import { FaChevronUp, FaChevronDown, FaTimesCircle, FaFilter, FaBolt } from 'react-icons/fa';
 import { pallette } from '../Utils/Pallete';
 import { updateFilters } from '../../redux/StationsSlice';
+import { useDispatch, useSelector } from 'react-redux';
 
 const FilterTabs = ({ onFilterChange }) => {
   const dispatch = useDispatch();
@@ -10,7 +10,19 @@ const FilterTabs = ({ onFilterChange }) => {
   const [activeTab, setActiveTab] = useState('');
   const [showFilterBox, setShowFilterBox] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState(null);
-  
+  //vishaladded
+    const reduxFilters = useSelector(
+  (state) => state.stations.lastUsedParams?.filters
+);
+//vishaladded
+useEffect(() => {
+  if (!reduxFilters) return;
+
+  setFilters(reduxFilters);
+  setActiveTab(reduxFilters.chargerType || "");
+
+}, [reduxFilters]);
+
   const [filters, setFilters] = useState({
     chargerType: null,     // For AC/DC type from tabs
     connectorType: null,   // Connector type
@@ -24,6 +36,11 @@ const FilterTabs = ({ onFilterChange }) => {
   ];
   
   const FILTER_CATEGORIES = {
+    //vishaladded
+    chargerType: [
+    { label: 'AC', value: 'AC' },
+    { label: 'DC', value: 'DC' }
+  ],
     connectorType: [
       { label: 'CCS2', value: 'CCS2' },
       { label: 'CCS1', value: 'CCS1' },
@@ -39,27 +56,21 @@ const FilterTabs = ({ onFilterChange }) => {
   };
 
   // Apply chargerType filter when tab changes - FIXED
+  //vishal added
   useEffect(() => {
-    console.log('Active tab changed:', activeTab);
-    
-    if (activeTab) {
-      const chargerType = TABS.find(tab => tab.label === activeTab)?.value;
-      console.log('Found chargerType:', chargerType);
-      
-      if (chargerType) {
-        const updatedFilters = { ...filters, chargerType };
-        setFilters(updatedFilters);
-        
-        // Apply filters immediately when tab is clicked
-        applyFiltersImmediately(updatedFilters);
-      }
-    } else {
-      // When tab is cleared, remove chargerType filter
-      const updatedFilters = { ...filters, chargerType: null };
-      setFilters(updatedFilters);
-      applyFiltersImmediately(updatedFilters);
-    }
-  }, [activeTab]);
+  const chargerType = activeTab || null;
+
+  if (filters.chargerType === chargerType) return;
+
+  const updatedFilters = {
+    ...filters,
+    chargerType
+  };
+
+  setFilters(updatedFilters);
+  applyFiltersImmediately(updatedFilters);
+
+}, [activeTab]);
 
   // Apply filters immediately (for tab clicks)
   const applyFiltersImmediately = (filterData) => {
@@ -83,27 +94,24 @@ const FilterTabs = ({ onFilterChange }) => {
   };
 
   // Apply filters to Redux and API (for Apply button)
-  const applyFilters = () => {
-    console.log('Applying filters from Apply button:', filters);
-    
-    // Prepare filter payload for API
-    const filterPayload = {
-      chargerType: filters.chargerType || null,
-      connectorType: filters.connectorType || null,
-      status: filters.status || null,
-    };
+  //vishal added
+ const applyFilters = () => {
+  console.log('Applying filters from Apply button:', filters);
 
-    // Update Redux store
-    dispatch(updateFilters(filterPayload));
-    
-    // Notify parent component (MapSection) to trigger API call
-    if (onFilterChange) {
-      console.log('Calling onFilterChange with:', filterPayload);
-      onFilterChange(filterPayload);
-    }
-    
-    setShowFilterBox(false);
+  const filterPayload = {
+    chargerType: filters.chargerType || null,
+    connectorType: filters.connectorType || null,
+    status: filters.status || null,
   };
+
+  dispatch(updateFilters(filterPayload));
+
+  if (onFilterChange) {
+    onFilterChange(filterPayload);
+  }
+
+  setShowFilterBox(false);
+};
 
   const toggleCategory = (category) => {
     setExpandedCategory(expandedCategory === category ? null : category);
@@ -144,9 +152,10 @@ const FilterTabs = ({ onFilterChange }) => {
     }
   };
 
-  const hasActiveFilters = activeTab || 
-    filters.connectorType || 
-    filters.status;
+ const hasActiveFilters =
+  filters.chargerType ||
+  filters.connectorType ||
+  filters.status;
 
   const renderFilterOption = (category, option) => (
     <button
@@ -197,22 +206,7 @@ const FilterTabs = ({ onFilterChange }) => {
   return (
     <div style={styles.container}>
       <div style={styles.row}>
-        <div style={styles.tabsContainer}>
-          {TABS.map(tab => (
-            <button
-              key={tab.value}
-              style={{
-                ...styles.tab,
-                backgroundColor: activeTab === tab.label ? pallette.primary : pallette.lightgrey,
-                color: activeTab === tab.label ? pallette.white : pallette.primary,
-              }}
-              onClick={() => handleTabClick(tab.label)}
-            >
-              <FaBolt size={14} />
-              <span style={styles.tabText}>{tab.label}</span>
-            </button>
-          ))}
-        </div>
+        
 
         <div style={styles.filterActions}>
           {hasActiveFilters && (
@@ -221,6 +215,7 @@ const FilterTabs = ({ onFilterChange }) => {
             </button>
           )}
 
+         {/* vishal added */}
           <button
             style={{
               ...styles.filterIcon,
@@ -233,7 +228,7 @@ const FilterTabs = ({ onFilterChange }) => {
             <FaFilter 
               size={20} 
               color={showFilterBox ? pallette.white : 
-                hasActiveFilters ? pallette.primary : pallette.black} 
+                hasActiveFilters ? pallette.primary : pallette.primary} 
             />
           </button>
         </div>
@@ -241,8 +236,9 @@ const FilterTabs = ({ onFilterChange }) => {
 
       {showFilterBox && (
         <div style={styles.filterBox}>
+        <div style={styles.filterContent}>
           <div style={styles.filterTitle}>More Filters</div>
-
+{renderFilterCategory('chargerType', 'Charger Type', FILTER_CATEGORIES.chargerType)}
           {renderFilterCategory('connectorType', 'Connector Type', FILTER_CATEGORIES.connectorType)}
           {renderFilterCategory('status', 'Status', FILTER_CATEGORIES.status)}
           
@@ -261,46 +257,23 @@ const FilterTabs = ({ onFilterChange }) => {
             </button>
           </div>
         </div>
+        </div>
       )}
     </div>
   );
 };
 
 const styles = {
-  container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    backdropFilter: 'blur(10px)',
-    borderRadius: '12px',
-    padding: '6px',
-    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
-  },
+ container: {
+  position: "absolute",
+  top: "20px",
+  right: "1px",
+  zIndex: 1000,
+},
   row: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  tabsContainer: {
-    display: 'flex',
-    gap: '12px',
-    flex: 1,
-    overflowX: 'auto',
-  },
-  tab: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '8px 10px',
-    borderRadius: '20px',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '600',
-    gap: '6px',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.3s ease',
-  },
-  tabText: {
-    fontSize: '12px',
-    fontWeight: '600',
   },
   filterActions: {
     display: 'flex',
@@ -311,8 +284,8 @@ const styles = {
     backgroundColor: pallette.lightgrey,
     padding: '8px',
     borderRadius: '50%',
-    width: '36px',
-    height: '36px',
+     width: '42px',
+    height: '42px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -330,14 +303,24 @@ const styles = {
   clearIconHover: {
     transform: 'scale(1.1)',
   },
+  //vishal added
   filterBox: {
-    backgroundColor: pallette.white,
-    padding: '16px',
-    marginTop: '12px',
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-    animation: 'fadeIn 0.3s ease',
-  },
+  position: "absolute",
+  right: "60px",
+  top: "65px",
+  width: "260px",
+  backgroundColor: "transparent",
+  padding: "0px",
+  boxShadow: "none",
+},
+//vishal added
+filterContent: {
+  backgroundColor: "rgba(255,255,255,0.95)",
+  backdropFilter: "blur(10px)",
+  padding: "12px",
+  borderRadius: "12px",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+},
   filterTitle: {
     fontSize: '16px',
     fontWeight: '600',

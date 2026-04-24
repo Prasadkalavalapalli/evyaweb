@@ -1,40 +1,38 @@
-import logo from './logo.svg';
-import './App.css';
-import MapsScreen from './screens/MapsScreen';
-import Search from './screens/Search';
-import Routescreen from './screens/Route';
+import { Routes, Route } from 'react-router-dom';
+
+import MapSearch from './screens/HomeScreens/MapSearch';
 import StationsList from './screens/StationsList';
-import { Router, Routes,Route } from 'react-router-dom';
-import SiteCard from './screens/SiteCard';
-import ErrorMessage from './helpers/ErrorMessage';
 import StationDetails from './screens/StationDetails';
 import BookingScreen from './screens/BookingScreen';
-import MapSection from './screens/HomeScreens/MapSection';
-import MapSearch from './screens/HomeScreens/MapSearch';
+import Routescreen from './screens/Route';
+import Search from './screens/Search';
+import SiteCard from './screens/SiteCard';
+import ErrorMessage from './helpers/ErrorMessage';
+import MapsScreen from './screens/MapsScreen';
+import FixedMapContainer from './screens/HomeScreens/FixedMapContainer';
 
 
 function App() {
   return (
-    <div >
-      {/* <Search/> */}
-      {/* <MapsScreen/> */}
-      {/* <Route/> */}
-      {/* <StationsList/> */}
-
+    <div style={{ position: 'relative' }}>
+      {/* MapSection is ALWAYS here - never unmounts */}
+  <FixedMapContainer/>
       
-      <Routes>
-        {/* Default route */}
-        <Route path="/mapsection" element={<MapSection/>}/>
-        <Route path="/map" element={<MapsScreen />} />
-        <Route path="/mapsearch" element={<MapSearch/>}/>
-        <Route path="/route" element={<Routescreen />} />
-        <Route path="/search" element={<Search />} />
-        <Route path="/site-card" element={<SiteCard/>} />
-        <Route path="/stations" element={<StationsList />} />
-        <Route path="/stationsdetails" element={<StationDetails/>}/>
-        <Route path="/booking" element={<BookingScreen/>}/>
-        <Route path="/error" element={<ErrorMessage/>}/>
-      </Routes>
+      {/* All routes render on top */}
+      <div style={{ position: 'relative', zIndex: 10, background: 'white' }}>
+        <Routes>
+          <Route path="/mapsection" element={<div />} />
+          <Route path="/map" element={<MapsScreen />} />
+          <Route path="/mapsearch" element={<MapSearch />} />
+          <Route path="/route" element={<Routescreen />} />
+          <Route path="/search" element={<Search />} />
+          <Route path="/site-card" element={<SiteCard />} />
+          <Route path="/stations" element={<StationsList />} />
+          <Route path="/stationsdetails" element={<StationDetails />} />
+          <Route path="/booking" element={<BookingScreen />} />
+          <Route path="/error" element={<ErrorMessage />} />
+        </Routes>
+      </div>
     </div>
   );
 }

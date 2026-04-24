@@ -1,20 +1,21 @@
 // stationsApi.js - UPDATED
 import axios from "axios";
 
-const API_URL = "https://server.evyaa.com/api/mobile/mobilegetAllSites";
+const API_URL = "http://localhost:8800/api/mobile/mobilegetAllSites";
 
 const getStations = async ({ location, filters, search, from, to } = {}, signal) => {
   let params = {};
 
   console.log("🔄 getStations called with:", { location, filters, search, from, to });
-
+params.radius = location?.radius ?? 100;
   // ✅ Extract location parameters
   if (location?.latitude != null) params.latitude = location.latitude;
   if (location?.longitude != null) params.longitude = location.longitude;
+  //lavanya added
 
   // ✅ Extract filter parameters - UPDATED to match API expectations
   if (filters) {
-    if (filters.radius != null) params.radiusKm = filters.radius;
+   // if (filters.radius != null) params.radiusKm = filters.radius;
     if (filters.connectorType != null) params.connectorTypes = filters.connectorType;
     if (filters.power != null) params.powerRange = filters.power;
     if (filters.chargerType != null) params.powerType = filters.chargerType;
